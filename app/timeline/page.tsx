@@ -5,6 +5,8 @@ import { sessionToken } from "@/lib/session";
 import { normalizeEvents } from "@/lib/timeline";
 import { Timeline } from "@/components/timeline";
 import { SyncStatus } from "@/components/sync-status";
+import { SyncRefresh } from "@/components/sync-refresh";
+import { StartSyncButton } from "@/components/start-sync";
 import { DotmSquare3 } from "@/components/ui/dotm-square-3";
 
 export default async function TimelinePage() {
@@ -36,19 +38,16 @@ export default async function TimelinePage() {
         </div>
       </header>
 
+      <SyncRefresh />
+
       {events.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-5">
           <DotmSquare3 size={40} dotSize={4} boxSize={28} ariaLabel="Waiting for synced history" />
           <p className="font-heading text-lg tracking-widest">NO HISTORY YET</p>
           <p className="max-w-sm text-center font-mono text-[11px] leading-relaxed tracking-widest text-muted-foreground">
-            A sync crawl fills the timeline from your first commit to today. Head home to start it.
+            The crawl fills the timeline from your first commit to today — it resumes from where it stopped.
           </p>
-          <Link
-            href="/"
-            className="rounded-sm bg-primary px-6 py-3 font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            START SYNC
-          </Link>
+          <StartSyncButton />
         </div>
       ) : (
         // eslint-disable-next-line react-hooks/purity -- RSC: a per-request "today" snapshot is intended

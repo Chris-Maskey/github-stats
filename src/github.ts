@@ -50,10 +50,13 @@ export class GitHubApiClient implements GitHubClient {
     // (`committedAt <= until`). Paginating internally keeps that contract, so a
     // same-timestamp cluster split across pages is returned whole and deduped
     // by SHA on re-walk instead of being dropped.
+    // The slash must NOT be encoded: GitHub 404s on `%2F` in the path.
+    const [owner, repo] = repoFullName.split('/')
+    const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits`
     for (let page = 1; ; page++) {
       const query = new URLSearchParams({ author, per_page: String(SEARCH_PER_PAGE), page: String(page) })
       if (until) query.set('until', until)
-      const batch = await this.request<RawCommit[]>(`/repos/${encodeURIComponent(repoFullName)}/commits?${query}`)
+      const batch = await this.request<RawCommit[]>(`${base}?${query}`)
       for (const commit of batch) {
         commits.push({
           sha: commit.sha,

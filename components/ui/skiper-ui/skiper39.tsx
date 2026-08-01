@@ -280,7 +280,10 @@ const CrowdCanvas = ({ src, rows = 15, cols = 7 }: CrowdCanvasProps) => {
     };
   }, []);
   return (
-    <canvas ref={canvasRef} className="absolute bottom-0 h-[90vh] w-full" />
+    <canvas
+      ref={canvasRef}
+      className="absolute bottom-0 h-[90vh] w-full opacity-60 [filter:invert(1)_sepia(1)_saturate(3)_hue-rotate(90deg)]"
+    />
   );
 };
 
