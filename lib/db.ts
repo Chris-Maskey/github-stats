@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { Storage } from '../src/storage.ts'
 
 export interface StoredUser {
   id: number
@@ -15,14 +16,31 @@ export interface Db {
   clearSession(sessionToken: string): void
 }
 
-let sharedDb: Db | null = null
-export function getDb(): Db {
-  return (sharedDb ??= openDb())
+const DB_PATH = 'data/app.db'
+
+function openConnection(path: string): DatabaseSync {
+  mkdirSync(dirname(path), { recursive: true })
+  return new DatabaseSync(path)
 }
 
-export function openDb(path = 'data/app.db'): Db {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-  const db = new DatabaseSync(path)
+let sharedConnection: DatabaseSync | null = null
+
+// One connection serves both the auth tables and the sync tables so the crawl
+// and the auth routes never contend on a second handle to the same file.
+function getConnection(): DatabaseSync {
+  return (sharedConnection ??= openConnection(DB_PATH))
+}
+
+export function getDb(): Db {
+  return openDb(getConnection())
+}
+
+export function getStorage(): Storage {
+  return new Storage(getConnection())
+}
+
+export function openDb(path: string | DatabaseSync = DB_PATH): Db {
+  const db = typeof path === 'string' ? openConnection(path) : path
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY,

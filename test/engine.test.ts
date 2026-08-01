@@ -1,10 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
-import { crawl } from '../src/engine.ts'
+import { crawl, RATE_LIMIT_RESET_AT, SYNC_STATUS } from '../src/engine.ts'
 import { Storage } from '../src/storage.ts'
 import type { Commit, GitHubClient, Issue, PR, Repo } from '../src/types.ts'
 import { RateLimitError, SEARCH_PER_PAGE } from '../src/types.ts'
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const start = Date.now()
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) throw new Error('timed out waiting for condition')
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
 
 type TableName = 'repos' | 'commits' | 'prs' | 'issues'
 
@@ -198,6 +206,47 @@ test('rate-limit exhaustion parks the crawl until reset, then continues', async 
   assert.equal(rows(storage.db, 'commits').length, 150)
   assert.equal(rows(storage.db, 'prs').length, 150)
   assert.equal(rows(storage.db, 'issues').length, 50)
+})
+
+test('a completed crawl leaves sync status done; an interrupted one stays running', async () => {
+  const fx = makeFixture()
+  const first = fx.client()
+  first.opts.failCommitCall = 3
+  const storage = new Storage(new DatabaseSync(':memory:'))
+
+  await assert.rejects(crawl(first, storage, { author: 'alice' }), /network failure/)
+  assert.equal(storage.getState(SYNC_STATUS), 'running', 'interrupted crawl stays running so the next visit resumes it')
+
+  await crawl(fx.client(), storage, { author: 'alice' })
+  assert.equal(storage.getState(SYNC_STATUS), 'done')
+})
+
+test('a rate-limit park marks sync status paused with the reset time, then completes done', async () => {
+  const fx = makeFixture()
+  const client = fx.client()
+  client.opts.rateLimitOnCall = 2
+  const resetMs = Date.now() + 5_000
+  client.opts.rateLimitResetMs = resetMs - Date.now()
+  const storage = new Storage(new DatabaseSync(':memory:'))
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+
+  const crawlPromise = crawl(client, storage, {
+    author: 'alice',
+    delay: async () => { await gate },
+  })
+
+  await waitFor(() => storage.getState(SYNC_STATUS) === 'paused')
+  const storedReset = Date.parse(storage.getState(RATE_LIMIT_RESET_AT) ?? '')
+  assert.ok(
+    storedReset >= resetMs && storedReset <= resetMs + 10,
+    `stored reset ${storedReset} must be the fake's reset time ${resetMs}`,
+  )
+
+  release()
+  await crawlPromise
+  assert.equal(storage.getState(SYNC_STATUS), 'done')
+  assert.equal(storage.getState(RATE_LIMIT_RESET_AT), '')
 })
 
 test('commits deduplicate by SHA', async () => {

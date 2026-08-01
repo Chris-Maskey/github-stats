@@ -1,25 +1,24 @@
-import Image from "next/image"
-import { getDb } from "@/lib/db"
-import { sessionToken } from "@/lib/session"
-import { ActivityIcon } from "@/components/animate-ui/icons/activity"
-import { DotmSquare3 } from "@/components/ui/dotm-square-3"
-import { CrowdCanvas } from "@/components/ui/skiper-ui/skiper39"
-import { Link001 } from "@/components/ui/skiper-ui/skiper40"
+import Image from "next/image";
+import { getDb } from "@/lib/db";
+import { sessionToken } from "@/lib/session";
+import { ActivityIcon } from "@/components/animate-ui/icons/activity";
+import { CrowdCanvas } from "@/components/ui/skiper-ui/skiper39";
+import { SyncStatus } from "@/components/sync-status";
 
 const ERRORS: Record<string, string> = {
-  state: 'Sign-in failed: the state check failed. Try again.',
-  github: 'Sign-in failed: GitHub rejected the request. Try again.',
-  config: 'Sign-in failed: GitHub OAuth is not configured on this server.',
-}
+  state: "Sign-in failed: the state check failed. Try again.",
+  github: "Sign-in failed: GitHub rejected the request. Try again.",
+  config: "Sign-in failed: GitHub OAuth is not configured on this server.",
+};
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const token = await sessionToken()
-  const user = token ? getDb().userBySession(token) : null
-  const error = ERRORS[(await searchParams).error ?? '']
+  const token = await sessionToken();
+  const user = token ? getDb().userBySession(token) : null;
+  const error = ERRORS[(await searchParams).error ?? ""];
 
   return (
     <main className="relative flex min-h-screen flex-col px-6 py-8">
@@ -82,22 +81,8 @@ export default async function Home({
         )}
       </div>
 
-      <footer className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-4 sm:flex-row">
-        <span className="inline-flex items-center gap-2.5">
-          <DotmSquare3
-            size={20}
-            dotSize={3}
-            boxSize={20}
-            animated={false}
-            ariaLabel="Sync engine standby"
-          />
-          <span className="font-mono text-xs tracking-widest text-muted-foreground">
-            {user ? 'SYNC: STANDBY' : 'SYNC: AWAITING SIGN-IN'}
-          </span>
-        </span>
-        <p className="font-mono text-xs tracking-widest text-muted-foreground">
-          BUILT WITH <Link001 href="https://skiper-ui.com">SKIPER UI</Link001>
-        </p>
+      <footer className="mt-8 flex flex-col items-center justify-between gap-3 pt-4 sm:flex-row">
+        <SyncStatus signedIn={!!user} />
       </footer>
     </main>
   );
