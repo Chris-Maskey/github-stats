@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] `npm create` boot of the Next.js app runs and renders a page
-- [ ] GitHub OAuth app configured; login redirects to GitHub and back
-- [ ] Session persists across browser restarts
-- [ ] Signed-in user's GitHub identity (username/avatar) visible in the UI
-- [ ] Sign-out works and clears the session
+- [x] `npm create` boot of the Next.js app runs and renders a page
+- [x] GitHub OAuth app configured; login redirects to GitHub and back
+- [x] Session persists across browser restarts
+- [x] Signed-in user's GitHub identity (username/avatar) visible in the UI
+- [x] Sign-out works and clears the session
