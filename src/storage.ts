@@ -95,6 +95,46 @@ export class Storage {
     }
   }
 
+  listCommits(): Commit[] {
+    return this.rows<{ sha: string; repo_full_name: string; message: string; author: string; committed_at: string }>(
+      `SELECT sha, repo_full_name, message, author, committed_at FROM commits`,
+    ).map((r) => ({
+      sha: r.sha,
+      repoFullName: r.repo_full_name,
+      message: r.message,
+      author: r.author,
+      committedAt: r.committed_at,
+    }))
+  }
+
+  listPRs(): PR[] {
+    return this.rows<{ id: number; repo_full_name: string; number: number; title: string; created_at: string }>(
+      `SELECT id, repo_full_name, number, title, created_at FROM prs`,
+    ).map((r) => ({
+      id: r.id,
+      repoFullName: r.repo_full_name,
+      number: r.number,
+      title: r.title,
+      createdAt: r.created_at,
+    }))
+  }
+
+  listIssues(): Issue[] {
+    return this.rows<{ id: number; repo_full_name: string; number: number; title: string; created_at: string }>(
+      `SELECT id, repo_full_name, number, title, created_at FROM issues`,
+    ).map((r) => ({
+      id: r.id,
+      repoFullName: r.repo_full_name,
+      number: r.number,
+      title: r.title,
+      createdAt: r.created_at,
+    }))
+  }
+
+  private rows<T>(sql: string): T[] {
+    return this.db.prepare(sql).all() as T[]
+  }
+
   getState(key: string): string | null {
     const row = this.getStateStmt.get(key) as { value: string } | undefined
     return row?.value ?? null

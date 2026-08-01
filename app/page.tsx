@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { sessionToken } from "@/lib/session";
 import { ActivityIcon } from "@/components/animate-ui/icons/activity";
@@ -62,14 +63,22 @@ export default async function Home({
               )}
               <span className="text-lg font-medium">{user.login}</span>
             </div>
-            <form action="/api/auth/signout" method="POST">
-              <button
-                type="submit"
-                className="rounded-sm border border-border px-4 py-2 text-sm hover:bg-secondary"
+            <div className="flex items-center gap-3">
+              <form action="/api/auth/signout" method="POST">
+                <button
+                  type="submit"
+                  className="rounded-sm border border-border px-4 py-2 text-sm hover:bg-secondary"
+                >
+                  Sign out
+                </button>
+              </form>
+              <Link
+                href="/timeline"
+                className="rounded-sm bg-primary px-6 py-2 font-medium text-primary-foreground hover:bg-primary/90"
               >
-                Sign out
-              </button>
-            </form>
+                Open timeline
+              </Link>
+            </div>
           </div>
         ) : (
           <a
