@@ -123,10 +123,10 @@ export interface AxisLabel {
   label: string
 }
 
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const
-const pad2 = (n: number) => String(n).padStart(2, '0')
+export const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const
+export const pad2 = (n: number) => String(n).padStart(2, '0')
 
-const DAY_MS = 86400_000
+export const DAY_MS = 86400_000
 // Nominal step widths used only to pick the label unit; iteration uses real
 // calendar arithmetic (`next`), so labels never drift off their boundaries.
 const UNITS = [

@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { getDb, getStorage } from "@/lib/db";
 import { sessionToken } from "@/lib/session";
 import { normalizeEvents } from "@/lib/timeline";
+import { computeStats } from "@/lib/stats";
 import { Timeline } from "@/components/timeline";
+import { StatsSection } from "@/components/stats-section";
 import { SyncStatus } from "@/components/sync-status";
 import { SyncRefresh } from "@/components/sync-refresh";
 import { StartSyncButton } from "@/components/start-sync";
@@ -50,8 +52,11 @@ export default async function TimelinePage() {
           <StartSyncButton />
         </div>
       ) : (
-        // eslint-disable-next-line react-hooks/purity -- RSC: a per-request "today" snapshot is intended
-        <Timeline events={events} now={Date.now()} />
+        <>
+          <StatsSection stats={computeStats(events, storage.listRepos())} />
+          {/* eslint-disable-next-line react-hooks/purity -- RSC: a per-request "today" snapshot is intended */}
+          <Timeline events={events} now={Date.now()} />
+        </>
       )}
 
       <footer className="mt-auto flex flex-col items-center gap-1.5 pt-4">

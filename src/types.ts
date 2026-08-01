@@ -1,5 +1,7 @@
 export interface Repo {
   fullName: string
+  /** Primary language GitHub reports for the repo; null when it detects none. */
+  language: string | null
 }
 
 export interface Commit {

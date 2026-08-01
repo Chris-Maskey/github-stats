@@ -23,6 +23,7 @@ interface RawSearchItem {
 
 interface RawRepo {
   full_name: string
+  language: string | null
 }
 
 export class GitHubApiClient implements GitHubClient {
@@ -38,7 +39,7 @@ export class GitHubApiClient implements GitHubClient {
       const batch = await this.request<RawRepo[]>(
         `/user/repos?per_page=${SEARCH_PER_PAGE}&page=${page}&affiliation=owner,collaborator,organization_member&sort=updated`,
       )
-      for (const repo of batch) repos.push({ fullName: repo.full_name })
+      for (const repo of batch) repos.push({ fullName: repo.full_name, language: repo.language })
       if (batch.length < SEARCH_PER_PAGE) break
     }
     return repos

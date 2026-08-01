@@ -1,10 +1,11 @@
 import { DatabaseSync } from 'node:sqlite'
-import type { Commit, Issue, PR } from './types.ts'
+import type { Commit, Issue, PR, Repo } from './types.ts'
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS repos (
   full_name TEXT PRIMARY KEY,
-  cursor TEXT
+  cursor TEXT,
+  language TEXT
 );
 CREATE TABLE IF NOT EXISTS commits (
   sha TEXT PRIMARY KEY,
@@ -53,7 +54,12 @@ export class Storage {
   constructor(db: DatabaseSync) {
     this.db = db
     db.exec(SCHEMA)
-    this.upsertRepoStmt = db.prepare(`INSERT INTO repos (full_name) VALUES (?) ON CONFLICT (full_name) DO NOTHING`)
+    // Migration: DBs created before repo languages existed lack the column.
+    const reposCols = db.prepare(`PRAGMA table_info(repos)`).all() as { name: string }[]
+    if (!reposCols.some((c) => c.name === 'language')) db.exec(`ALTER TABLE repos ADD COLUMN language TEXT`)
+    this.upsertRepoStmt = db.prepare(
+      `INSERT INTO repos (full_name, language) VALUES (?, ?) ON CONFLICT (full_name) DO UPDATE SET language = excluded.language`,
+    )
     this.getCursorStmt = db.prepare(`SELECT cursor FROM repos WHERE full_name = ?`)
     this.setCursorStmt = db.prepare(`UPDATE repos SET cursor = ? WHERE full_name = ?`)
     this.insertCommitStmt = db.prepare(
@@ -69,8 +75,15 @@ export class Storage {
     this.setStateStmt = db.prepare(`INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`)
   }
 
-  upsertRepo(fullName: string): void {
-    this.upsertRepoStmt.run(fullName)
+  upsertRepo(fullName: string, language: string | null): void {
+    this.upsertRepoStmt.run(fullName, language)
+  }
+
+  listRepos(): Repo[] {
+    return this.rows<{ full_name: string; language: string | null }>(`SELECT full_name, language FROM repos`).map((r) => ({
+      fullName: r.full_name,
+      language: r.language,
+    }))
   }
 
   getRepoCursor(fullName: string): string | null {

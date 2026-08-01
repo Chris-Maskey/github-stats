@@ -116,7 +116,11 @@ function makeFixture() {
     issues,
     client() {
       const client = new FakeGitHub()
-      client.repos = [{ fullName: 'a/repo' }, { fullName: 'b/repo' }, { fullName: 'empty/repo' }]
+      client.repos = [
+        { fullName: 'a/repo', language: 'TypeScript' },
+        { fullName: 'b/repo', language: 'Rust' },
+        { fullName: 'empty/repo', language: null },
+      ]
       client.commits = commits
       client.prs = prs
       client.issues = issues
@@ -137,6 +141,12 @@ test('a full crawl persists every commit, PR, and issue', async () => {
   assert.equal(rows(storage.db, 'prs').length, 150)
   assert.equal(rows(storage.db, 'issues').length, 50)
   assert.equal(rows(storage.db, 'repos').length, 3)
+  const storedRepo = storage.db.prepare(`SELECT * FROM repos WHERE full_name = 'a/repo'`).get() as Record<string, unknown>
+  assert.equal(storedRepo.language, 'TypeScript')
+  assert.equal(
+    (storage.db.prepare(`SELECT language FROM repos WHERE full_name = 'empty/repo'`).get() as { language: string | null }).language,
+    null,
+  )
   const commit = storage.db.prepare(`SELECT * FROM commits WHERE sha = 'a42'`).get() as Record<string, unknown>
   assert.equal(commit.message, 'commit a42')
   assert.equal(commit.repo_full_name, 'a/repo')
@@ -278,11 +288,40 @@ test('commits sharing a timestamp at a page boundary are not lost', async () => 
   commits.push({ sha: 'c99', repoFullName: 'a/repo', message: 'c99', author: 'alice', committedAt: iso(t0) })
   commits.push({ sha: 'c100', repoFullName: 'a/repo', message: 'c100', author: 'alice', committedAt: iso(t0) })
   const client = new FakeGitHub()
-  client.repos = [{ fullName: 'a/repo' }]
+  client.repos = [{ fullName: 'a/repo', language: null }]
   client.commits = commits
   const storage = new Storage(new DatabaseSync(':memory:'))
 
   await crawl(client, storage, { author: 'alice' })
 
   assert.equal(rows(storage.db, 'commits').length, 101)
+})
+
+test('a re-crawl backfills languages on repos already synced without them', async () => {
+  const fx = makeFixture()
+  const first = fx.client()
+  const storage = new Storage(new DatabaseSync(':memory:'))
+  await crawl(first, storage, { author: 'alice' })
+  assert.equal((storage.db.prepare(`SELECT language FROM repos WHERE full_name = 'a/repo'`).get() as { language: string | null }).language, 'TypeScript')
+
+  const second = fx.client()
+  second.repos = [{ fullName: 'a/repo', language: 'Go' }, ...second.repos.slice(1)]
+  await crawl(second, storage, { author: 'alice' })
+
+  assert.equal((storage.db.prepare(`SELECT language FROM repos WHERE full_name = 'a/repo'`).get() as { language: string | null }).language, 'Go')
+  assert.equal(storage.listRepos().length, 3)
+})
+
+// ponytail: direct adapter test — the schema migration is unreachable through
+// the engine seam (its in-memory DB always has the column), and it guards the
+// upgrade of existing on-disk DBs.
+test('Storage migrates a repos table created before languages existed', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`CREATE TABLE repos (full_name TEXT PRIMARY KEY, cursor TEXT)`)
+  db.prepare(`INSERT INTO repos (full_name) VALUES (?)`).run('old/repo')
+
+  const storage = new Storage(db)
+  storage.upsertRepo('old/repo', 'Python')
+
+  assert.deepEqual(storage.listRepos(), [{ fullName: 'old/repo', language: 'Python' }])
 })

@@ -72,7 +72,7 @@ export async function crawl(client: GitHubClient, storage: Storage, options: Cra
   storage.setState(RATE_LIMIT_RESET_AT, '')
 
   for (const repo of await withRateLimitPark(() => client.listRepos(), delay, storage)) {
-    storage.upsertRepo(repo.fullName)
+    storage.upsertRepo(repo.fullName, repo.language)
     let until = storage.getRepoCursor(repo.fullName)
     for (;;) {
       const commits = await withRateLimitPark(() => client.listCommits(repo.fullName, author, until ?? undefined), delay, storage)
