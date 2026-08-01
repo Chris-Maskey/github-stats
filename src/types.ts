@@ -26,13 +26,16 @@ export interface Issue {
   createdAt: string
 }
 
+// Page size the GitHub search API honors; a client's page is full until it
+// returns fewer than this, which the engine uses as its end-of-pagination signal.
 export const SEARCH_PER_PAGE = 100
 
 export interface GitHubClient {
   listRepos(): Promise<Repo[]>
-  listCommits(repoFullName: string, until?: string): Promise<Commit[]>
-  searchPRs(page: number): Promise<PR[]>
-  searchIssues(page: number): Promise<Issue[]>
+  /** Authored commits of `repoFullName`, newest first, `committedAt <= until`. */
+  listCommits(repoFullName: string, author: string, until?: string): Promise<Commit[]>
+  searchPRs(author: string, page: number): Promise<PR[]>
+  searchIssues(author: string, page: number): Promise<Issue[]>
 }
 
 export class RateLimitError extends Error {

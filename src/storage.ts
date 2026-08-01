@@ -33,10 +33,6 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 `
 
-export function openStorage(path = ':memory:'): DatabaseSync {
-  return new DatabaseSync(path)
-}
-
 export class Storage {
   readonly db: DatabaseSync
 

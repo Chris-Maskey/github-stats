@@ -67,6 +67,16 @@ test('exchangeCode returns the token from GitHub', async () => {
   }
 })
 
+test('fetchGitHubUser throws on a non-200 response', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (async () => new Response('{"message":"Bad credentials"}', { status: 401 })) as typeof fetch
+  try {
+    await assert.rejects(fetchGitHubUser('gho_bad'), /HTTP 401/)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('exchangeCode throws on an error response', async () => {
   const originalFetch = globalThis.fetch
   globalThis.fetch = (async () =>
@@ -92,7 +102,7 @@ test('fetchGitHubUser parses identity and sends the bearer token', async () => {
   const originalFetch = globalThis.fetch
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     assert.equal(String(input), 'https://api.github.com/user')
-    assert.equal(init?.headers, 'Authorization: Bearer gho_abc')
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer gho_abc')
     return new Response(
       JSON.stringify({
         id: 42,

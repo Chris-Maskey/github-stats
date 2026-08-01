@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 
 export interface AuthorizeParams {
   clientId: string
@@ -24,7 +24,7 @@ export function newState(): string {
 export function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a)
   const bBuf = Buffer.from(b)
-  return aBuf.length === bBuf.length && Buffer.compare(aBuf, bBuf) === 0
+  return aBuf.length === bBuf.length && timingSafeEqual(aBuf, bBuf)
 }
 
 export interface ExchangeParams {
@@ -55,8 +55,10 @@ export interface GitHubIdentity {
 }
 
 export async function fetchGitHubUser(token: string): Promise<GitHubIdentity> {
-  // ponytail: plain string header — the OAuth test asserts init.headers equals a raw string
-  const res = await fetch('https://api.github.com/user', { headers: `Authorization: Bearer ${token}` as unknown as HeadersInit })
+  const res = await fetch('https://api.github.com/user', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`GitHub user fetch failed: HTTP ${res.status}`)
   const user = (await res.json()) as { id: number; login: string; avatar_url: string }
   return { id: user.id, login: user.login, avatarUrl: user.avatar_url }
 }

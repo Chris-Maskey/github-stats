@@ -1,4 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
+import { mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 export interface StoredUser {
   id: number
@@ -18,7 +20,8 @@ export function getDb(): Db {
   return (sharedDb ??= openDb())
 }
 
-export function openDb(path = ':memory:'): Db {
+export function openDb(path = 'data/app.db'): Db {
+  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const db = new DatabaseSync(path)
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
