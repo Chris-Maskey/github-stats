@@ -1,0 +1,199 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { DatabaseSync } from 'node:sqlite'
+import { crawl } from '../src/engine.ts'
+import { openStorage, Storage } from '../src/storage.ts'
+import type { Commit, GitHubClient, Issue, PR, Repo } from '../src/types.ts'
+import { RateLimitError, SEARCH_PER_PAGE } from '../src/types.ts'
+
+type TableName = 'repos' | 'commits' | 'prs' | 'issues'
+
+function rows(db: DatabaseSync, table: TableName) {
+  return db.prepare(`SELECT * FROM ${table}`).all() as Record<string, unknown>[]
+}
+
+function iso(ms: number): string {
+  return new Date(ms).toISOString()
+}
+
+interface FakeGitHubOptions {
+  failCommitCall?: number
+  failSearchPage?: number
+  rateLimitOnCall?: number
+  rateLimitResetMs?: number
+}
+
+class FakeGitHub implements GitHubClient {
+  repos: Repo[] = []
+  commits: Commit[] = []
+  prs: PR[] = []
+  issues: Issue[] = []
+
+  readonly commitCalls: Array<{ repo: string; until: string | null }> = []
+  readonly searchedPages = { prs: [] as number[], issues: [] as number[] }
+
+  private callCount = 0
+
+  readonly opts: FakeGitHubOptions
+
+  constructor(opts: FakeGitHubOptions = {}) {
+    this.opts = opts
+  }
+
+  async listRepos(): Promise<Repo[]> {
+    this.bump()
+    return this.repos
+  }
+
+  async listCommits(repoFullName: string, until?: string): Promise<Commit[]> {
+    this.bump()
+    this.commitCalls.push({ repo: repoFullName, until: until ?? null })
+    if (this.opts.failCommitCall === this.commitCalls.length) {
+      throw new Error('network failure while listing commits')
+    }
+    return this.commits
+      .filter((c) => c.repoFullName === repoFullName && (until === undefined || c.committedAt < until))
+      .sort((a, b) => (a.committedAt < b.committedAt ? 1 : -1))
+  }
+
+  async searchPRs(page: number): Promise<PR[]> {
+    this.bump()
+    this.searchedPages.prs.push(page)
+    if (this.opts.failSearchPage === page) {
+      throw new Error('network failure while searching PRs')
+    }
+    return this.prs.slice((page - 1) * SEARCH_PER_PAGE, page * SEARCH_PER_PAGE)
+  }
+
+  async searchIssues(page: number): Promise<Issue[]> {
+    this.bump()
+    this.searchedPages.issues.push(page)
+    if (this.opts.failSearchPage === page) {
+      throw new Error('network failure while searching issues')
+    }
+    return this.issues.slice((page - 1) * SEARCH_PER_PAGE, page * SEARCH_PER_PAGE)
+  }
+
+  private bump() {
+    this.callCount += 1
+    if (this.opts.rateLimitOnCall === this.callCount) {
+      const resetAt = new Date(Date.now() + (this.opts.rateLimitResetMs ?? 0))
+      throw new RateLimitError(resetAt)
+    }
+  }
+}
+
+function makeFixture() {
+  const t0 = Date.UTC(2010, 0, 1)
+  const commits: Commit[] = []
+  for (let i = 0; i < 120; i++) {
+    commits.push({ sha: `a${i}`, repoFullName: 'a/repo', message: `commit a${i}`, author: 'alice', committedAt: iso(t0 + i * 86_400_000) })
+  }
+  for (let i = 0; i < 30; i++) {
+    commits.push({ sha: `b${i}`, repoFullName: 'b/repo', message: `commit b${i}`, author: 'alice', committedAt: iso(t0 + i * 86_400_000) })
+  }
+  const prs: PR[] = []
+  for (let i = 0; i < 150; i++) {
+    prs.push({ id: i, number: i + 1, repoFullName: 'c/repo', title: `pr ${i}`, createdAt: iso(t0 + i * 3_600_000) })
+  }
+  const issues: Issue[] = []
+  for (let i = 0; i < 50; i++) {
+    issues.push({ id: i, number: i + 1, repoFullName: 'd/repo', title: `issue ${i}`, createdAt: iso(t0 + i * 3_600_000) })
+  }
+  return {
+    commits,
+    prs,
+    issues,
+    client() {
+      const client = new FakeGitHub()
+      client.repos = [{ fullName: 'a/repo' }, { fullName: 'b/repo' }, { fullName: 'empty/repo' }]
+      client.commits = commits
+      client.prs = prs
+      client.issues = issues
+      return client
+    },
+  }
+}
+
+test('a full crawl persists every commit, PR, and issue', async () => {
+  const fx = makeFixture()
+  const client = fx.client()
+  const storage = new Storage(openStorage())
+
+  await crawl(client, storage)
+
+  assert.equal(rows(storage.db, 'commits').length, 150)
+  assert.equal(rows(storage.db, 'prs').length, 150)
+  assert.equal(rows(storage.db, 'issues').length, 50)
+  assert.equal(rows(storage.db, 'repos').length, 3)
+  const commit = storage.db.prepare(`SELECT * FROM commits WHERE sha = 'a42'`).get() as Record<string, unknown>
+  assert.equal(commit.message, 'commit a42')
+  assert.equal(commit.repo_full_name, 'a/repo')
+  assert.equal(commit.committed_at, iso(Date.UTC(2010, 0, 1) + 42 * 86_400_000))
+})
+
+test('an interrupted crawl resumes from its cursor without losing or duplicating records', async () => {
+  const fx = makeFixture()
+  const first = fx.client()
+  first.opts.failCommitCall = 3
+  const storage = new Storage(openStorage())
+
+  await assert.rejects(crawl(first, storage), /network failure/)
+
+  const second = fx.client()
+  await crawl(second, storage)
+
+  assert.equal(rows(storage.db, 'commits').length, 150)
+  assert.equal(rows(storage.db, 'prs').length, 150)
+  assert.equal(rows(storage.db, 'issues').length, 50)
+
+  const aCalls = second.commitCalls.filter((c) => c.repo === 'a/repo')
+  assert.equal(aCalls.length, 1, 'finished repos must not be re-walked from the start')
+  const bCalls = second.commitCalls.filter((c) => c.repo === 'b/repo')
+  assert.equal(bCalls[0].until, first.commitCalls.at(-1)!.until, 'resume starts exactly where the failed crawl stopped')
+})
+
+test('an interrupted search phase resumes from the stored page', async () => {
+  const fx = makeFixture()
+  const first = fx.client()
+  first.opts.failSearchPage = 2
+  const storage = new Storage(openStorage())
+
+  await assert.rejects(crawl(first, storage), /network failure/)
+  assert.deepEqual(first.searchedPages.prs, [1, 2])
+
+  const second = fx.client()
+  await crawl(second, storage)
+
+  assert.equal(rows(storage.db, 'prs').length, 150)
+  assert.deepEqual(second.searchedPages.prs, [2], 'page 1 must not be re-searched')
+})
+
+test('rate-limit exhaustion parks the crawl until reset, then continues', async () => {
+  const fx = makeFixture()
+  const client = fx.client()
+  client.opts.rateLimitOnCall = 2
+  client.opts.rateLimitResetMs = 10
+  const storage = new Storage(openStorage())
+  let sleptMs = 0
+
+  await crawl(client, storage, { delay: async (ms) => { sleptMs += ms } })
+
+  assert.ok(sleptMs >= 10, `crawl must sleep past the reset, slept ${sleptMs}ms`)
+  assert.equal(rows(storage.db, 'commits').length, 150)
+  assert.equal(rows(storage.db, 'prs').length, 150)
+  assert.equal(rows(storage.db, 'issues').length, 50)
+})
+
+test('commits deduplicate by SHA', async () => {
+  const fx = makeFixture()
+  const client = fx.client()
+  client.commits.push({ sha: 'a0', repoFullName: 'a/repo', message: 'duplicate', author: 'alice', committedAt: iso(Date.UTC(2010, 0, 1)) })
+  client.commits.push({ sha: 'a1', repoFullName: 'a/repo', message: 'duplicate', author: 'alice', committedAt: iso(Date.UTC(2010, 0, 1) + 86_400_000) })
+  const storage = new Storage(openStorage())
+
+  await crawl(client, storage)
+
+  const stored = storage.db.prepare(`SELECT COUNT(*) AS n FROM commits WHERE sha IN ('a0', 'a1')`).get() as { n: number }
+  assert.equal(stored.n, 2)
+})
