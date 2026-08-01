@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { axisLabels, bucketize, clampRange, countInRange, initialBounds, normalizeEvents, zoomRange } from '../lib/timeline.ts'
+import { axisLabels, bucketize, clampRange, countInRange, initialBounds, normalizeEvents, panRange, zoomRange } from '../lib/timeline.ts'
 import type { Commit, Issue, PR } from '../src/types.ts'
 
 const DAY_MS = 86400_000
@@ -69,6 +69,13 @@ test('clampRange keeps the span within bounds and at least the min span', () => 
   assert.deepEqual(clampRange({ start: 800, end: 1300 }, bounds, 10), { start: 500, end: 1000 })
   assert.deepEqual(clampRange({ start: 100, end: 90 }, bounds, 10), { start: 100, end: 110 }, 'min span wins')
   assert.deepEqual(clampRange({ start: -100, end: 2000 }, bounds, 10), { start: 0, end: 1000 }, 'wider than bounds collapses to bounds')
+})
+
+test('panRange shifts the range and clamps at the edges', () => {
+  const bounds = { start: 0, end: 1000 }
+  assert.deepEqual(panRange({ start: 100, end: 300 }, 50, bounds, 10), { start: 150, end: 350 })
+  assert.deepEqual(panRange({ start: 100, end: 300 }, -500, bounds, 10), { start: 0, end: 200 }, 'clamps at the start edge')
+  assert.deepEqual(panRange({ start: 100, end: 300 }, 900, bounds, 10), { start: 800, end: 1000 }, 'clamps at the end edge')
 })
 
 test('initialBounds spans first activity to now, padded when shorter than a day', () => {

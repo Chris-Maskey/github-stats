@@ -11,6 +11,7 @@ import {
   clampRange,
   countInRange,
   initialBounds,
+  panRange,
   zoomRange,
   type Kind,
   type Range,
@@ -93,6 +94,15 @@ export function Timeline({ events, now }: { events: TimelineEvent[]; now: number
   const [hovered, setHovered] = useState<PopoverData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  // Mirror state into refs so the once-bound wheel listener reads live values.
+  const rangeRef = useRef(range);
+  const boundsRef = useRef(bounds);
+  const widthRef = useRef(width);
+  useEffect(() => {
+    rangeRef.current = range;
+    boundsRef.current = bounds;
+    widthRef.current = width;
+  });
 
   // New chunks land while the crawl runs: grow the window from the past end
   // so the fill is visible — adjusting state during render, per the React
@@ -118,18 +128,29 @@ export function Timeline({ events, now }: { events: TimelineEvent[]; now: number
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    // React attaches wheel passively, so preventDefault needs a native listener.
+    // Bound once (reading live state via refs) — re-binding on every range
+    // change let wheel events slip past preventDefault and scroll the page,
+    // dragging the timeline out from under the cursor mid-zoom.
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      const r = rangeRef.current;
+      const b = boundsRef.current;
+      const span = r.end - r.start;
       const rect = el.getBoundingClientRect();
-      const t = rect.width ? (e.clientX - rect.left) / rect.width : 0.5;
-      const anchor = range.start + (range.end - range.start) * Math.min(1, Math.max(0, t));
+      const pxPerMs = rect.width ? rect.width / span : 1;
+      const dx = (e.shiftKey ? e.deltaY : e.deltaX) * (e.deltaMode === 1 ? 16 : 1);
+      if (dx !== 0) {
+        setRange((cur) => panRange(cur, dx / pxPerMs, b, MIN_SPAN));
+        return;
+      }
+      if (e.deltaY === 0) return;
+      const anchor = r.start + (e.clientX - rect.left) / pxPerMs;
       const factor = e.deltaY < 0 ? 1.4 : 1 / 1.4;
-      setRange((r) => clampRange(zoomRange(r, factor, anchor), bounds, MIN_SPAN));
+      setRange((cur) => clampRange(zoomRange(cur, factor, anchor), b, MIN_SPAN));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [range, bounds]);
+  }, []);
 
   const span = range.end - range.start;
   const dense = span > DENSITY_SPAN || countInRange(events, range) > MAX_TICKS;
@@ -235,14 +256,14 @@ export function Timeline({ events, now }: { events: TimelineEvent[]; now: number
             </button>
             <button
               type="button"
-              onClick={() => zoomButtons(2)}
+              onClick={() => zoomButtons(0.5)}
               className="rounded-sm border border-border bg-secondary px-2.5 py-1 font-heading text-xs tracking-widest hover:bg-secondary/70"
             >
               −
             </button>
             <button
               type="button"
-              onClick={() => zoomButtons(0.5)}
+              onClick={() => zoomButtons(2)}
               className="rounded-sm border border-border bg-secondary px-2.5 py-1 font-heading text-xs tracking-widest hover:bg-secondary/70"
             >
               +

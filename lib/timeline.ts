@@ -91,6 +91,11 @@ export function clampRange(range: Range, bounds: Range, minSpan: number): Range 
   return { start, end }
 }
 
+/** Pan `range` by `shiftMs`, keeping the span and clamping to `bounds`. */
+export function panRange(range: Range, shiftMs: number, bounds: Range, minSpan: number): Range {
+  return clampRange({ start: range.start + shiftMs, end: range.end + shiftMs }, bounds, minSpan)
+}
+
 /** Zoom the range by `factor` (>= 1 zooms in) keeping `anchor` fixed in place. */
 export function zoomRange(range: Range, factor: number, anchor: number): Range {
   const span = range.end - range.start
