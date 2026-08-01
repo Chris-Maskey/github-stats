@@ -130,6 +130,7 @@ test('a full crawl persists every commit, PR, and issue', async () => {
   const client = fx.client()
   const storage = new Storage(new DatabaseSync(':memory:'))
 
+  assert.deepEqual(storage.syncProgress(), { minAt: null, maxAt: null })
   await crawl(client, storage, { author: 'alice' })
 
   assert.equal(rows(storage.db, 'commits').length, 150)
@@ -140,6 +141,11 @@ test('a full crawl persists every commit, PR, and issue', async () => {
   assert.equal(commit.message, 'commit a42')
   assert.equal(commit.repo_full_name, 'a/repo')
   assert.equal(commit.committed_at, iso(Date.UTC(2010, 0, 1) + 42 * 86_400_000))
+  // Progress spans the oldest commit to the newest activity across all tables.
+  assert.deepEqual(storage.syncProgress(), {
+    minAt: iso(Date.UTC(2010, 0, 1)),
+    maxAt: iso(Date.UTC(2010, 0, 1) + 119 * 86_400_000),
+  })
 })
 
 test('only the author\'s commits are persisted', async () => {

@@ -86,12 +86,26 @@ interface PopoverData {
 }
 
 export function Timeline({ events, now }: { events: TimelineEvent[]; now: number }) {
-  const [bounds] = useState<Range>(() => initialBounds(events, now));
+  const [bounds, setBounds] = useState<Range>(() => initialBounds(events, now));
   const [range, setRange] = useState<Range>(bounds);
+  const [prevEvents, setPrevEvents] = useState(events);
   const [width, setWidth] = useState(900);
   const [hovered, setHovered] = useState<PopoverData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // New chunks land while the crawl runs: grow the window from the past end
+  // so the fill is visible — adjusting state during render, per the React
+  // sanctioned pattern for state that derives from props. Only the "fit" view
+  // follows the fill: at fit, `range` always equals `bounds`, so zoomed/paned
+  // views (range !== bounds) keep their viewport while new data lands.
+  if (events !== prevEvents) {
+    setPrevEvents(events);
+    const next = initialBounds(events, now);
+    setBounds((b) => (b.start === next.start && b.end === next.end ? b : next));
+    const atFit = range.start === bounds.start && range.end === bounds.end;
+    if (atFit) setRange((r) => (r.start === next.start && r.end === next.end ? r : next));
+  }
 
   useEffect(() => {
     const el = containerRef.current;

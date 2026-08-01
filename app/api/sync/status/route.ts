@@ -9,8 +9,11 @@ export async function GET() {
   if (!user) return NextResponse.json({ status: 'signed-out' })
 
   const storage = getStorage()
+  const progress = storage.syncProgress()
   return NextResponse.json({
     status: storage.getState(SYNC_STATUS) ?? 'idle',
     rateLimitResetAt: storage.getState(RATE_LIMIT_RESET_AT),
+    minAt: progress.minAt,
+    maxAt: progress.maxAt,
   })
 }

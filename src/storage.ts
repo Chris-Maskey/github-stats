@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 `
 
+export interface SyncProgress {
+  minAt: string | null
+  maxAt: string | null
+}
+
 export class Storage {
   readonly db: DatabaseSync
 
@@ -133,6 +138,20 @@ export class Storage {
 
   private rows<T>(sql: string): T[] {
     return this.db.prepare(sql).all() as T[]
+  }
+
+  /** Earliest and latest synced activity; null when nothing has landed yet. */
+  syncProgress(): SyncProgress {
+    const row = this.db
+      .prepare(
+        `SELECT MIN(at) AS min_at, MAX(at) AS max_at FROM (
+           SELECT committed_at AS at FROM commits
+           UNION ALL SELECT created_at AS at FROM prs
+           UNION ALL SELECT created_at AS at FROM issues
+         )`,
+      )
+      .get() as { min_at: string | null; max_at: string | null }
+    return { minAt: row.min_at, maxAt: row.max_at }
   }
 
   getState(key: string): string | null {
