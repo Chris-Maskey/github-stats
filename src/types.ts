@@ -40,6 +40,21 @@ export interface GitHubClient {
   searchIssues(author: string, page: number): Promise<Issue[]>
 }
 
+export interface Chapter {
+  year: number
+  /** null when the year had no activity or narration failed — stat block only. */
+  narration: string | null
+}
+
+export interface Retrospective {
+  /** null when generation failed or there was nothing to narrate. */
+  opener: string | null
+  chapters: Chapter[]
+}
+
+/** The single (prompt) → text seam; the Gemini adapter is its only real implementation. */
+export type Narrator = (prompt: string) => Promise<string>
+
 export class RateLimitError extends Error {
   readonly resetAt: Date
 

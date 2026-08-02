@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import type { Commit, Issue, PR, Repo } from './types.ts'
+import type { Commit, Issue, PR, Repo, Retrospective } from './types.ts'
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS repos (
@@ -32,6 +32,14 @@ CREATE TABLE IF NOT EXISTS sync_state (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+-- One retrospective per user; the fingerprint records the stat blocks it was
+-- generated from, so a mismatch flags the story stale.
+CREATE TABLE IF NOT EXISTS retrospectives (
+  user_id INTEGER PRIMARY KEY,
+  fingerprint TEXT NOT NULL,
+  opener TEXT,
+  chapters TEXT NOT NULL
+);
 `
 
 export interface SyncProgress {
@@ -50,6 +58,8 @@ export class Storage {
   private readonly insertIssueStmt: ReturnType<DatabaseSync['prepare']>
   private readonly getStateStmt: ReturnType<DatabaseSync['prepare']>
   private readonly setStateStmt: ReturnType<DatabaseSync['prepare']>
+  private readonly getRetrospectiveStmt: ReturnType<DatabaseSync['prepare']>
+  private readonly saveRetrospectiveStmt: ReturnType<DatabaseSync['prepare']>
 
   constructor(db: DatabaseSync) {
     this.db = db
@@ -73,6 +83,11 @@ export class Storage {
     )
     this.getStateStmt = db.prepare(`SELECT value FROM sync_state WHERE key = ?`)
     this.setStateStmt = db.prepare(`INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`)
+    this.getRetrospectiveStmt = db.prepare(`SELECT fingerprint, opener, chapters FROM retrospectives WHERE user_id = ?`)
+    this.saveRetrospectiveStmt = db.prepare(
+      `INSERT INTO retrospectives (user_id, fingerprint, opener, chapters) VALUES (?, ?, ?, ?)
+       ON CONFLICT (user_id) DO UPDATE SET fingerprint = excluded.fingerprint, opener = excluded.opener, chapters = excluded.chapters`,
+    )
   }
 
   upsertRepo(fullName: string, language: string | null): void {
@@ -174,5 +189,15 @@ export class Storage {
 
   setState(key: string, value: string): void {
     this.setStateStmt.run(key, value)
+  }
+
+  getRetrospective(userId: number): { fingerprint: string; retrospective: Retrospective } | null {
+    const row = this.getRetrospectiveStmt.get(userId) as { fingerprint: string; opener: string | null; chapters: string } | undefined
+    if (!row) return null
+    return { fingerprint: row.fingerprint, retrospective: { opener: row.opener, chapters: JSON.parse(row.chapters) as Retrospective['chapters'] } }
+  }
+
+  saveRetrospective(userId: number, fingerprint: string, retrospective: Retrospective): void {
+    this.saveRetrospectiveStmt.run(userId, fingerprint, retrospective.opener, JSON.stringify(retrospective.chapters))
   }
 }
