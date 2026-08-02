@@ -14,7 +14,7 @@ export interface Stats {
 }
 
 /** Longest run of consecutive UTC days with at least one event. */
-function longestStreakDays(atList: number[]): number {
+export function longestStreakDays(atList: number[]): number {
   if (atList.length === 0) return 0
   const days = [...new Set(atList.map((t) => Math.floor(t / DAY_MS)))].sort((a, b) => a - b)
   let best = 1

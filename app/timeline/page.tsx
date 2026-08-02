@@ -4,8 +4,10 @@ import { getDb, getStorage } from "@/lib/db";
 import { sessionToken } from "@/lib/session";
 import { normalizeEvents } from "@/lib/timeline";
 import { computeStats } from "@/lib/stats";
+import { computeYearStatBlocks } from "@/lib/year-stats";
 import { Timeline } from "@/components/timeline";
 import { StatsSection } from "@/components/stats-section";
+import { RetrospectiveSection } from "@/components/retrospective-section";
 import { SyncStatus } from "@/components/sync-status";
 import { SyncRefresh } from "@/components/sync-refresh";
 import { StartSyncButton } from "@/components/start-sync";
@@ -54,6 +56,7 @@ export default async function TimelinePage() {
       ) : (
         <>
           <StatsSection stats={computeStats(events, storage.listRepos())} />
+          <RetrospectiveSection blocks={computeYearStatBlocks(events)} />
           {/* eslint-disable-next-line react-hooks/purity -- RSC: a per-request "today" snapshot is intended */}
           <Timeline events={events} now={Date.now()} />
         </>

@@ -25,6 +25,29 @@ The user-facing state of a crawl in progress — "Syncing 2009–2026…" — th
 **Honesty line**:
 The one-line acknowledgement that deleted repos leave holes in the history that GitHub itself can't fill.
 
+**Retrospective**:
+The LLM-narrated story of the synced history: chapters for every year of activity, plus an opener generated last. Every sentence traces to a provided stat; the narrator gets ordering and phrasing only, never numbers it wasn't handed.
+_Avoid_: Recap, yearbook, AI summary, chronicle
+
+**Chapter**:
+One bounded per-year block of the retrospective: a stat block plus narration covering exactly one calendar year. An empty chapter renders as a deliberate blank — "no activity synced" — never as a mood. A chapter whose narration failed still renders its stat block; data is truth, narration is garnish.
+_Avoid_: Year card, section
+
+**Opener**:
+The career-spanning chapter at the top of the retrospective: lifetime totals and the throughline. It is generated last — after every chapter has landed — so its cross-year claims can never contradict them. It is short by design: no decade of runway for narration to wander.
+_Avoid_: Prologue, summary
+
+**Stat block**:
+The deterministic per-year numbers — counts, top repo, streaks, sampled titles — computed server-side and handed to the narrator as the only source of numbers. Always rendered, with or without narration.
+_Avoid_: Stats, data
+
+**Sampled titles**:
+The ~5–10 commit/PR titles chosen deterministically per year (peak-commit day, most-active repo, first and last) and included in the stat block, so narration can name real moments without seeing the whole history.
+_Avoid_: Quotes, examples
+
+**Assertion rule**:
+Narration may assert only what the local DB knows — a fact, a count, a title it was handed. It may never infer mood, motive, or cause over gaps. The honesty line is the single place the app speaks about what GitHub doesn't know, and it never merges with chapter copy.
+
 ## Language under construction
 
 **Retrospective**:

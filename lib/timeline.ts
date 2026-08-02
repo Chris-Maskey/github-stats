@@ -131,6 +131,12 @@ export interface AxisLabel {
 export const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const
 export const pad2 = (n: number) => String(n).padStart(2, '0')
 
+/** A UTC day as "DD MMM YYYY", e.g. "01 JAN 2010". */
+export function formatDay(at: number): string {
+  const d = new Date(at)
+  return `${pad2(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+}
+
 export const DAY_MS = 86400_000
 // Nominal step widths used only to pick the label unit; iteration uses real
 // calendar arithmetic (`next`), so labels never drift off their boundaries.

@@ -1,13 +1,8 @@
 import type { ReactNode } from "react";
 import type { Stats } from "@/lib/stats";
-import { MONTHS, pad2 } from "@/lib/timeline";
+import { formatDay } from "@/lib/timeline";
 
-function formatDay(at: number): string {
-  const d = new Date(at);
-  return `${pad2(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
-function Tile({ label, children }: { label: string; children: ReactNode }) {
+export function Tile({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="bg-card p-3">
       <div>{children}</div>
@@ -16,7 +11,7 @@ function Tile({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function BigNumber({ value }: { value: number | string }) {
+export function BigNumber({ value }: { value: number | string }) {
   return <span className="font-heading text-2xl leading-none tracking-wide">{value}</span>;
 }
 
